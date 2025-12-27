@@ -5,6 +5,7 @@
 # 数据集: CIFAR-100 (fine_label)
 # ============================================
 export CUDA_VISIBLE_DEVICES=0,1
+cd ../src
 
 set -e
 

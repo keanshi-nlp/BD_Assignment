@@ -3,6 +3,7 @@
 # Parameter Server vs Collective 模式对比实验
 # ============================================
 export CUDA_VISIBLE_DEVICES=0,1,2
+cd ../src
 set -e
 
 echo "============================================"
@@ -22,38 +23,38 @@ LR=0.01
 # ============================================
 # 实验1: Collective 模式 (AllReduce - NCCL)
 # ============================================
-# echo ""
-# echo "========== [1] Collective Mode (NCCL AllReduce) =========="
-# python train_collective.py \
-#     --model $MODEL \
-#     --batch_size $BATCH_SIZE \
-#     --epochs $EPOCHS \
-#     --lr $LR \
-#     --backend nccl
+echo ""
+echo "========== [1] Collective Mode (NCCL AllReduce) =========="
+python train_collective.py \
+    --model $MODEL \
+    --batch_size $BATCH_SIZE \
+    --epochs $EPOCHS \
+    --lr $LR \
+    --backend nccl
 
-# # ============================================
-# # 实验2: Collective 模式 (AllReduce - Gloo)
-# # ============================================
-# echo ""
-# echo "========== [2] Collective Mode (Gloo AllReduce) =========="
-# python train_collective.py \
-#     --model $MODEL \
-#     --batch_size $BATCH_SIZE \
-#     --epochs $EPOCHS \
-#     --lr $LR \
-#     --backend gloo
+# ============================================
+# 实验2: Collective 模式 (AllReduce - Gloo)
+# ============================================
+echo ""
+echo "========== [2] Collective Mode (Gloo AllReduce) =========="
+python train_collective.py \
+    --model $MODEL \
+    --batch_size $BATCH_SIZE \
+    --epochs $EPOCHS \
+    --lr $LR \
+    --backend gloo
 
-# # ============================================
-# # 实验3: Parameter Server 模式 (2 workers)
-# # ============================================
-# echo ""
-# echo "========== [3] Parameter Server Mode (2 workers) =========="
-# python train_ps.py \
-#     --model $MODEL \
-#     --batch_size $BATCH_SIZE \
-#     --epochs $EPOCHS \
-#     --lr $LR \
-#     --num_workers 2
+# ============================================
+# 实验3: Parameter Server 模式 (2 workers)
+# ============================================
+echo ""
+echo "========== [3] Parameter Server Mode (2 workers) =========="
+python train_ps.py \
+    --model $MODEL \
+    --batch_size $BATCH_SIZE \
+    --epochs $EPOCHS \
+    --lr $LR \
+    --num_workers 2
 
 python train_ps_gpu.py \
     --model $MODEL \

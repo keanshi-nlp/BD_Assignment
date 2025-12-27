@@ -11,6 +11,7 @@ echo "Nsight Systems 性能分析"
 echo "============================================"
 
 export CUDA_VISIBLE_DEVICES=0,1,2
+cd ../src
 
 # 配置
 MODEL="resnet18"
