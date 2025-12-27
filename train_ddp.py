@@ -1,6 +1,7 @@
 """
 实验2: 单机多卡 - 数据并行 (DDP)
 使用PyTorch DistributedDataParallel
+支持 NVTX 性能分析
 """
 
 import os
@@ -15,7 +16,7 @@ import argparse
 import config
 from data_loader import get_dataloaders
 from model_factory import get_model, count_parameters
-from utils import (train_epoch, evaluate, get_gpu_memory, 
+from utils import (train_epoch_ddp, evaluate, get_gpu_memory, 
                    print_training_info, MetricsLogger)
 
 
@@ -40,10 +41,10 @@ def train_ddp(rank, world_size, args):
     
     if rank == 0:
         print(f"DDP Training with {world_size} GPUs, Backend: {args.backend}")
+        if args.profile:
+            print("NVTX profiling enabled")
     
     # 加载数据 - 分布式采样器
-    # 注意: DDP下每个GPU的有效batch_size = batch_size
-    # 总batch_size = batch_size * world_size
     train_loader, test_loader, train_sampler = get_dataloaders(
         batch_size=args.batch_size,
         distributed=True,
@@ -65,7 +66,6 @@ def train_ddp(rank, world_size, args):
     
     # 损失函数和优化器
     criterion = nn.CrossEntropyLoss()
-    # 学习率按world_size线性缩放
     scaled_lr = args.lr * world_size if args.scale_lr else args.lr
     optimizer = optim.SGD(model.parameters(), lr=scaled_lr, 
                           momentum=config.MOMENTUM, weight_decay=config.WEIGHT_DECAY)
@@ -82,11 +82,13 @@ def train_ddp(rank, world_size, args):
     # 训练循环
     best_acc = 0
     for epoch in range(args.epochs):
-        train_sampler.set_epoch(epoch)  # 确保每个epoch的数据打乱不同
+        train_sampler.set_epoch(epoch)
         torch.cuda.reset_peak_memory_stats()
         
-        train_loss, train_acc, epoch_time, throughput = train_epoch(
-            model, train_loader, criterion, optimizer, device, scaler, args.amp
+        # 使用带NVTX标记的DDP训练函数
+        train_loss, train_acc, epoch_time, throughput = train_epoch_ddp(
+            model, train_loader, criterion, optimizer, device, 
+            scaler, args.amp, profile=args.profile
         )
         
         # 汇总所有GPU的指标
@@ -94,10 +96,10 @@ def train_ddp(rank, world_size, args):
         dist.all_reduce(metrics, op=dist.ReduceOp.SUM)
         metrics /= world_size
         train_loss, train_acc = metrics[0].item(), metrics[1].item()
-        total_throughput = throughput * world_size  # 总吞吐量
+        total_throughput = throughput * world_size
         
-        # 评估 (只在rank 0上进行完整评估)
-        test_loss, test_acc = evaluate(model, test_loader, criterion, device)
+        test_loss, test_acc = evaluate(model, test_loader, criterion, device,
+                                        profile=args.profile)
         
         scheduler.step()
         gpu_memory = get_gpu_memory()
@@ -137,11 +139,12 @@ def main():
     parser.add_argument('--model', type=str, default='resnet50')
     parser.add_argument('--batch_size', type=int, default=128, help='Batch size per GPU')
     parser.add_argument('--epochs', type=int, default=50)
-    parser.add_argument('--lr', type=float, default=0.1)
+    parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--backend', type=str, default='nccl', choices=['nccl', 'gloo'])
     parser.add_argument('--use_cache', action='store_true')
     parser.add_argument('--amp', action='store_true')
     parser.add_argument('--scale_lr', action='store_true', help='Scale LR by world size')
+    parser.add_argument('--profile', action='store_true', help='Enable NVTX profiling')
     
     args = parser.parse_args()
     

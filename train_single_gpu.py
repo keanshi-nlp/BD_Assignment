@@ -1,5 +1,6 @@
 """
 实验1: 单机单卡训练 (非分布式基线)
+支持 NVTX 性能分析
 """
 
 import torch
@@ -20,6 +21,8 @@ def train_single_gpu(args):
     # 设置设备
     device = torch.device(f'cuda:{args.gpu}' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
+    if args.profile:
+        print("NVTX profiling enabled")
     
     # 加载数据
     train_loader, test_loader, _ = get_dataloaders(
@@ -53,9 +56,11 @@ def train_single_gpu(args):
         torch.cuda.reset_peak_memory_stats()
         
         train_loss, train_acc, epoch_time, throughput = train_epoch(
-            model, train_loader, criterion, optimizer, device, scaler, args.amp
+            model, train_loader, criterion, optimizer, device, 
+            scaler, args.amp, profile=args.profile
         )
-        test_loss, test_acc = evaluate(model, test_loader, criterion, device)
+        test_loss, test_acc = evaluate(model, test_loader, criterion, device, 
+                                        profile=args.profile)
         
         scheduler.step()
         gpu_memory = get_gpu_memory()
@@ -93,10 +98,11 @@ if __name__ == '__main__':
                                  'vgg16', 'densenet121', 'efficientnet_b0'])
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--epochs', type=int, default=50)
-    parser.add_argument('--lr', type=float, default=0.1)
+    parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--use_cache', action='store_true', help='Cache data in memory')
     parser.add_argument('--amp', action='store_true', help='Use mixed precision training')
+    parser.add_argument('--profile', action='store_true', help='Enable NVTX profiling')
     
     args = parser.parse_args()
     train_single_gpu(args)

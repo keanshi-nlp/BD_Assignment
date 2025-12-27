@@ -15,7 +15,7 @@ MOMENTUM = 0.9
 WEIGHT_DECAY = 5e-4
 
 # 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'vgg16', 'densenet121'
-MODEL_NAME = 'resnet50'
+MODEL_NAME = 'resnet18'
 
 # 分布式配置
 MASTER_ADDR = 'localhost'

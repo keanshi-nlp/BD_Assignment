@@ -1,6 +1,9 @@
 """
-实验: FSDP (Fully Sharded Data Parallel) 训练
+实验: Collective 模式 (AllReduce)
+使用 DDP 实现，作为与 Parameter Server 的对比基线
 支持 NVTX 性能分析
+
+通信模式: Ring-AllReduce（NCCL 后端默认）
 """
 
 import os
@@ -8,15 +11,14 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.distributed as dist
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp import ShardingStrategy
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.cuda.amp import GradScaler
 import argparse
 
 import config
 from data_loader import get_dataloaders
 from model_factory import get_model, count_parameters
-from utils import (train_epoch_fsdp, evaluate, get_gpu_memory, 
+from utils import (train_epoch_ddp, evaluate, get_gpu_memory, 
                    print_training_info, MetricsLogger)
 
 
@@ -33,25 +35,15 @@ def cleanup():
     dist.destroy_process_group()
 
 
-def get_sharding_strategy(sharding_type):
-    """获取分片策略"""
-    strategies = {
-        'full': ShardingStrategy.FULL_SHARD,
-        'grad': ShardingStrategy.SHARD_GRAD_OP,
-        'no': ShardingStrategy.NO_SHARD,
-    }
-    return strategies.get(sharding_type, ShardingStrategy.FULL_SHARD)
-
-
-def train_fsdp(rank, world_size, args):
-    """FSDP训练主函数"""
-    setup(rank, world_size)
+def train_collective(rank, world_size, args):
+    """Collective 模式训练（AllReduce）"""
+    setup(rank, world_size, args.backend)
     
     device = torch.device(f'cuda:{rank}')
     
     if rank == 0:
-        print(f"FSDP Training with {world_size} GPUs")
-        print(f"Sharding strategy: {args.sharding}")
+        print(f"Collective Mode Training ({args.backend.upper()} AllReduce)")
+        print(f"World size: {world_size}, Backend: {args.backend}")
         if args.profile:
             print("NVTX profiling enabled")
     
@@ -65,27 +57,25 @@ def train_fsdp(rank, world_size, args):
     )
     
     if rank == 0:
-        print(f"Per-GPU batch size: {args.batch_size}, Effective batch size: {args.batch_size * world_size}")
+        print(f"Per-GPU batch size: {args.batch_size}")
+        print(f"Global batch size: {args.batch_size * world_size}")
     
     # 创建模型
     model = get_model(args.model).to(device)
+    model = DDP(model, device_ids=[rank], output_device=rank)
     
     if rank == 0:
-        total_params, _ = count_parameters(model)
+        total_params, _ = count_parameters(model.module)
         print(f"Model: {args.model}, Parameters: {total_params:,}")
-    
-    # 包装FSDP
-    sharding_strategy = get_sharding_strategy(args.sharding)
-    model = FSDP(
-        model,
-        sharding_strategy=sharding_strategy,
-        device_id=rank,
-    )
     
     # 损失函数和优化器
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, 
-                          momentum=config.MOMENTUM, weight_decay=config.WEIGHT_DECAY)
+    optimizer = optim.SGD(
+        model.parameters(), 
+        lr=args.lr,
+        momentum=config.MOMENTUM, 
+        weight_decay=config.WEIGHT_DECAY
+    )
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
     
     # 混合精度
@@ -93,7 +83,7 @@ def train_fsdp(rank, world_size, args):
     
     # 日志
     if rank == 0:
-        exp_name = f"fsdp_{args.sharding}_{args.model}_bs{args.batch_size}x{world_size}_amp{args.amp}"
+        exp_name = f"collective_{args.backend}_{args.model}_bs{args.batch_size}x{world_size}"
         logger = MetricsLogger(config.LOG_DIR, exp_name)
     
     # 训练循环
@@ -102,13 +92,13 @@ def train_fsdp(rank, world_size, args):
         train_sampler.set_epoch(epoch)
         torch.cuda.reset_peak_memory_stats()
         
-        # 使用带NVTX标记的FSDP训练函数
-        train_loss, train_acc, epoch_time, throughput = train_epoch_fsdp(
+        # 使用带NVTX标记的DDP训练函数
+        train_loss, train_acc, epoch_time, throughput = train_epoch_ddp(
             model, train_loader, criterion, optimizer, device, 
             scaler, args.amp, profile=args.profile
         )
         
-        # 汇总指标
+        # AllReduce 同步指标
         metrics = torch.tensor([train_loss, train_acc, throughput], device=device)
         dist.all_reduce(metrics, op=dist.ReduceOp.SUM)
         metrics /= world_size
@@ -136,10 +126,11 @@ def train_fsdp(rank, world_size, args):
             'batch_size_per_gpu': args.batch_size,
             'effective_batch_size': args.batch_size * world_size,
             'world_size': world_size,
-            'sharding_strategy': args.sharding,
+            'backend': args.backend,
             'use_amp': args.amp,
             'best_acc': best_acc,
-            'training_type': 'fsdp'
+            'training_type': 'collective_allreduce',
+            'communication_mode': 'collective'
         }
         logger.save(extra_info)
         print(f"\nBest Test Accuracy: {best_acc:.2f}%")
@@ -148,15 +139,14 @@ def train_fsdp(rank, world_size, args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='FSDP Training')
-    parser.add_argument('--model', type=str, default='resnet50')
-    parser.add_argument('--batch_size', type=int, default=128)
+    parser = argparse.ArgumentParser(description='Collective Mode Training (AllReduce)')
+    parser.add_argument('--model', type=str, default='resnet18')
+    parser.add_argument('--batch_size', type=int, default=128, help='Batch size per GPU')
     parser.add_argument('--epochs', type=int, default=50)
     parser.add_argument('--lr', type=float, default=0.01)
-    parser.add_argument('--sharding', type=str, default='full', 
-                        choices=['full', 'grad', 'no'])
+    parser.add_argument('--backend', type=str, default='nccl', choices=['nccl', 'gloo'])
     parser.add_argument('--use_cache', action='store_true')
-    parser.add_argument('--amp', action='store_true')
+    parser.add_argument('--amp', action='store_true', help='Use mixed precision training')
     parser.add_argument('--profile', action='store_true', help='Enable NVTX profiling')
     
     args = parser.parse_args()
@@ -165,7 +155,7 @@ def main():
     print(f"Found {world_size} GPUs")
     
     torch.multiprocessing.spawn(
-        train_fsdp,
+        train_collective,
         args=(world_size, args),
         nprocs=world_size,
         join=True
