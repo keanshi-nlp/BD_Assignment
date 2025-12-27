@@ -27,4 +27,6 @@ python ./src/train_ddp.py --model resnet50 --batch_size 128 --epochs 50 --backen
 ```
 
 ## 5. 使用 nsight 分析结果
+```bash
 bash ./scripts/run_ntvx.sh 
+```
