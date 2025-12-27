@@ -1,0 +1,42 @@
+{
+  "experiment_name": "fsdp_full_resnet18_bs128x2_ampFalse",
+  "metrics": {
+    "train_loss": [
+      4.0892333984375,
+      3.576549530029297
+    ],
+    "train_acc": [
+      7.616186141967773,
+      15.022035598754883
+    ],
+    "test_loss": [
+      3.882528742980957,
+      3.3973751968383787
+    ],
+    "test_acc": [
+      10.76,
+      18.18
+    ],
+    "epoch_time": [
+      23.13581347465515,
+      23.887215614318848
+    ],
+    "throughput": [
+      2157.693744146339,
+      2089.820798120823
+    ],
+    "gpu_memory": [
+      709.03857421875,
+      709.0390625
+    ]
+  },
+  "total_time": 69.05725455284119,
+  "model": "resnet18",
+  "batch_size_per_gpu": 128,
+  "effective_batch_size": 256,
+  "world_size": 2,
+  "sharding_strategy": "full",
+  "use_amp": false,
+  "best_acc": 18.18,
+  "training_type": "fsdp"
+}

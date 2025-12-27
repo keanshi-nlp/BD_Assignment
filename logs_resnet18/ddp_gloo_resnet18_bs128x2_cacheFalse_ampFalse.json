@@ -1,0 +1,44 @@
+{
+  "experiment_name": "ddp_gloo_resnet18_bs128x2_cacheFalse_ampFalse",
+  "metrics": {
+    "train_loss": [
+      4.106532096862793,
+      3.5798749923706055
+    ],
+    "train_acc": [
+      7.522035598754883,
+      15.220352172851562
+    ],
+    "test_loss": [
+      3.743093271255493,
+      3.421314193344116
+    ],
+    "test_acc": [
+      12.01,
+      18.09
+    ],
+    "epoch_time": [
+      29.919995546340942,
+      30.83055543899536
+    ],
+    "throughput": [
+      1668.449446213402,
+      1619.172904580881
+    ],
+    "gpu_memory": [
+      757.89404296875,
+      757.89453125
+    ]
+  },
+  "total_time": 84.80765724182129,
+  "model": "resnet18",
+  "batch_size_per_gpu": 128,
+  "effective_batch_size": 256,
+  "world_size": 2,
+  "backend": "gloo",
+  "use_cache": false,
+  "use_amp": false,
+  "scaled_lr": 0.01,
+  "best_acc": 18.09,
+  "training_type": "ddp_data_parallel"
+}

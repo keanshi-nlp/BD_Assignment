@@ -1,0 +1,39 @@
+{
+  "experiment_name": "model_parallel_resnet18_bs128_cacheFalse",
+  "metrics": {
+    "train_loss": [
+      3.9384408046037724,
+      3.2651178787916133
+    ],
+    "train_acc": [
+      9.567307692307692,
+      20.486778846153847
+    ],
+    "test_loss": [
+      3.603730460357666,
+      3.0238026233673096
+    ],
+    "test_acc": [
+      14.399999999999999,
+      24.87
+    ],
+    "epoch_time": [
+      15.912664890289307,
+      15.198557376861572
+    ],
+    "throughput": [
+      3137.123815789249,
+      3284.5222584084645
+    ],
+    "gpu_memory": [
+      523.74560546875,
+      523.74560546875
+    ]
+  },
+  "total_time": 33.465404987335205,
+  "model": "resnet18",
+  "batch_size": 128,
+  "use_cache": false,
+  "best_acc": 24.87,
+  "training_type": "model_parallel"
+}

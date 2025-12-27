@@ -9,11 +9,11 @@ __pycache__/
 # Distribution / packaging
 .Python
 data/
-logs*/
+logs/
+logs_resnet18_bp/
 nsight_reports/
 plots*/
 checkpoints/
-results/
 build/
 develop-eggs/
 dist/
